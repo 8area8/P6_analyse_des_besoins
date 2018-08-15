@@ -1,0 +1,97 @@
+    - un diagramme de classe,
+    - un diagramme de composant,
+    - un diagramme de déploiement,
+    - et le MPD (modèle physique de données).
+
+diagramme de classes: décrire les entités du modèle de données et les relations qui les lies
+diagramme de composants: décrire le composants de l'application et les interfaces qui les lient. Décrire chaque interface avec les opérations supportées
+diagramme de déploiement: décrire  le rôle de chaque noeud, quelle type de machine, quel os, quels sont les composants déployés dessus.
+
+
+---
+ECRIRE EN PREQUEL AUX DIAGRAMMES (MODEL FORMEL):
+---
+
+Présentation stratégique :
+elle décrit pourquoi l'entreprise a voulu se doter de l'outil considéré, les buts qu'elle cherche à atteindre, le calendrier de réalisation prévu, etc. ;
+Présentation des processus de travail par lesquels la stratégie entend se réaliser :
+pour permettre au lecteur de voir comment l'application va fonctionner en pratique, elle doit être illustrée par une esquisse des écrans qui seront affichés devant les utilisateurs de terrain ;
+Explication des choix qui ont guidé la modélisation formelle :
+il s'agit de synthétiser, sous les yeux du lecteur, les discussions qui ont présidé à ces choix ;
+Modèle formel :
+c'est le document le plus épais et le plus difficile à lire. Il est préférable de le présenter sur l'Intranet de l'entreprise. En effet, les diagrammes peuvent être alors équipés de liens hypertextes permettant l'ouverture de diagrammes plus détaillés ou de commentaires.
+
+https://laurent-audibert.developpez.com/Cours-UML/?page=diagrammes-composants-deploiement
+https://www.uml-diagrams.org/component-diagrams.html
+
+----
+
+lien trop utiles:
+
+- random uuid sur postgreSQL
+https://starkandwayne.com/blog/uuid-primary-keys-in-postgresql/
+
+- passeword:
+https://www.meetspaceapp.com/2016/04/12/passwords-postgresql-pgcrypto.html
+
+- email:
+https://dba.stackexchange.com/questions/68266/what-is-the-best-way-to-store-an-email-address-in-postgresql/68267
+
+
+
+--------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------
+
+
+A faire:
+
+---------
+-- SQL --
+---------
+pas de bill, inutile. tva_id dans la commande.
+donc modifier la vue + les fonctions qui génèrent les commandes...
+
+
+A faire, un gros TRI:
+- le dump total
+- le dump de la base (vues comprises)
+- le dump des données
+-
+- les commandes en action
+-
+- la requête de connection de compte
+- les requêtes pour l'utilisateur
+- les requêtes pour le pizzaïolo
+- les requêtes pour le livreur
+- la requête des commandes archivées
+
+
+---------
+-- UML --
+---------
+
+déploiement:
+- serveur python, serveur appache (http connexions), webserver -> server Linux (ajout de Django ?)
+- ajout de packages mobiles tablette etc.
+- nom des appli tierces
+
+
+----------
+-- TEXT --
+----------
+
+finir d'écrire le document explicatif:
+- 
+
+créer le powerpoint (easy).
+
+
+
+
+SOUTENANCE:
+
+rappel projet 4, context package etc rapidos, + choix techniques
+
+
+
+
