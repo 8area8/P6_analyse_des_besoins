@@ -209,18 +209,6 @@ CREATE TABLE tva (
 CREATE INDEX idx_change_date On tva (change_date DESC);
 
 
-CREATE TABLE bill (
-    id                  SERIAL,
-    tva_id              INTEGER,
-    command_id          INTEGER,
-    bill_date        TIMESTAMP DEFAULT current_timestamp,
-    PRIMARY KEY (id),
-    FOREIGN KEY (tva_id) REFERENCES tva(id) ON DELETE CASCADE,
-    FOREIGN KEY (command_id) REFERENCES command(id) ON DELETE CASCADE);
-
-CREATE INDEX idx_bill_date On bill (bill_date DESC);
-
-
 CREATE TABLE account (
     id                          SERIAL,
     mail_id                     INTEGER,
@@ -547,7 +535,7 @@ CREATE FUNCTION f_total_price (a_command_id INTEGER)
     LANGUAGE 'plpgsql';
 
 
-CREATE FUNCTION f_notax_price (a_command_id INTEGER, a_tva_id INTEGER)
+CREATE FUNCTION f_notax_price (a_command_id INTEGER)
     RETURNS NUMERIC
     AS
     '
@@ -555,9 +543,13 @@ CREATE FUNCTION f_notax_price (a_command_id INTEGER, a_tva_id INTEGER)
         notax_price NUMERIC;
         rate_tva NUMERIC;
       BEGIN
+        SELECT tva_rate INTO rate_tva
+            FROM tva, command
+            WHERE command.id = 1 AND change_date = (SELECT MAX(change_date) FROM tva);
+
         SELECT f_total_price(a_command_id) INTO notax_price;
-        SELECT tva_rate INTO rate_tva FROM tva WHERE tva.id = a_tva_id;
         SELECT notax_price::NUMERIC / (1::NUMERIC + (rate_tva / 100::NUMERIC)) INTO notax_price;
+
         RETURN ROUND(notax_price, 2);
       END ;
     '
@@ -651,7 +643,6 @@ DO
         id_phone_number INTEGER;
         id_command INTEGER;
         id_prod_per_com INTEGER;
-        id_tva INTEGER;
     BEGIN
         SELECT f_create_adress (1::INTEGER, 10::SMALLINT, ''rue de leon''::VARCHAR(300), ''75010''::VARCHAR(40), ''paris''::VARCHAR(300)) INTO id_adress;
 
@@ -667,10 +658,6 @@ DO
         PERFORM f_modify_command_product (TRUE, id_prod_per_com, 4);
         
         PERFORM f_create_command_product (id_command, 2);
-
-
-        SELECT MAX(tva.id) INTO id_tva FROM tva;
-        INSERT INTO bill (tva_id, command_id) VALUES (id_tva, id_command);
     END;
 '
 LANGUAGE 'plpgsql';
@@ -687,7 +674,6 @@ DO
         id_pizzeria INTEGER;
         id_command INTEGER;
         id_prod_per_com INTEGER;
-        id_tva INTEGER;
     BEGIN
         SELECT f_create_adress (1::INTEGER, 34::SMALLINT, ''avenu de ouioui''::VARCHAR(300), ''75001''::VARCHAR(40), ''paris''::VARCHAR(300)) INTO id_adress;
 
@@ -709,9 +695,6 @@ DO
         PERFORM f_modify_command_product (TRUE, id_prod_per_com, 5);
         
         PERFORM f_create_command_product (id_command, 3);
-
-        SELECT MAX(tva.id) INTO id_tva FROM tva;
-        INSERT INTO bill (tva_id, command_id) VALUES (id_tva, id_command);
     END;
 '
 LANGUAGE 'plpgsql';
@@ -727,7 +710,6 @@ DO
         id_phone_number INTEGER;
         id_command INTEGER;
         id_prod_per_com INTEGER;
-        id_tva INTEGER;
     BEGIN
         SELECT adress.id INTO id_adress
             FROM adress
@@ -754,9 +736,6 @@ DO
         PERFORM f_create_command_product (id_command, 2);
         PERFORM f_modify_command_product (TRUE, id_prod_per_com, 3);
         PERFORM f_modify_command_product (FALSE, id_prod_per_com, 4);
-
-        SELECT MAX(tva.id) INTO id_tva FROM tva;
-        INSERT INTO bill (tva_id, command_id) VALUES (id_tva, id_command);
     END;
 '
 LANGUAGE 'plpgsql';
@@ -769,13 +748,13 @@ LANGUAGE 'plpgsql';
 
 
 
-CREATE VIEW command_product AS
+CREATE VIEW v_command_product AS
     SELECT product.name AS "nom", product.price AS "prix", command.id AS "numero de commande"
     FROM product
     INNER JOIN product_per_command AS ppc ON ppc.product_id = product.id
     INNER JOIN command ON command.id = ppc.command_id;
 
-CREATE VIEW command_adding AS
+CREATE VIEW v_command_adding AS
     SELECT adding.id AS additions_id, ppc.id AS product_per_com_id,
         product.name AS produits, CONCAT(ingredient.name, ' + ', ingredient.price, ' euros') AS retraits,
         command.id AS "numero de commande"
@@ -786,7 +765,7 @@ CREATE VIEW command_adding AS
     LEFT JOIN command ON command.id = ppc.command_id
     ORDER BY product.name;
 
-CREATE VIEW command_deletion AS
+CREATE VIEW v_command_deletion AS
     SELECT deletion.id AS deletion_id, ppc.id AS product_per_com_id,
         product.name AS produits, CONCAT(ingredient.name, ' - ', TRUNC(ingredient.price / 2, 2), ' euros') AS retraits,
         command.id AS "numero de commande"
@@ -798,14 +777,13 @@ CREATE VIEW command_deletion AS
     ORDER BY product.name;
 
 
-CREATE VIEW command_general AS
-    SELECT command.id AS "numero de commande", command.tracking_number AS "numéro de suivi",
-    TO_CHAR(command.creation_date, 'YYYY-MM-DD HH24:MI') AS "date de création",
-        f_notax_price(command.id, tva.id) AS "prix hors taxe", f_total_price(command.id) AS "prix TTC",
+CREATE VIEW v_command_general AS
+    SELECT command.id AS "numero de commande", command.tracking_number AS "numero de suivi",
+    TO_CHAR(command.creation_date, 'YYYY-MM-DD HH24:MI') AS "date de creation", 
+    TO_CHAR(command.last_modification_date, 'YYYY-MM-DD HH24:MI') AS "derniere modification",
+        f_notax_price(command.id::INTEGER) AS "prix hors taxe", f_total_price(command.id) AS "prix TTC",
         general_status.name AS "statut", payment_status.name AS "statut de paiement"
     FROM command
-    INNER JOIN bill ON bill.command_id = command.id
-    INNER JOIN tva ON tva.id = bill.tva_id
     INNER JOIN general_status ON general_status.id = command.general_status_id
     INNER JOIN payment_status ON payment_status.id = command.payment_status_id;
 
@@ -813,20 +791,20 @@ CREATE VIEW command_general AS
 
 
 
-CREATE VIEW standing_command AS
+CREATE VIEW v_standing_command AS
     SELECT command.id AS "numero de commande", command.pizzeria_id AS "pizzeria",
         general_status.name AS "statut general"
     FROM command
     INNER JOIN general_status ON general_status.id = command.general_status_id
     ORDER BY creation_date;
 
-SELECT "numero de commande", "statut general" FROM standing_command WHERE "pizzeria" = 2;
+SELECT "numero de commande", "statut general" FROM v_standing_command WHERE "pizzeria" = 2;
 UPDATE command SET general_status_id = 2 WHERE command.id = 2;
 UPDATE command SET general_status_id = 4 WHERE command.id = 2;
 UPDATE command SET general_status_id = 2 WHERE command.id = 3;
 UPDATE command SET general_status_id = 4 WHERE command.id = 3;
 
-CREATE VIEW ready_for_delivery AS
+CREATE VIEW v_ready_for_delivery AS
     SELECT command.id AS "numero de commande", command.pizzeria_id AS "pizzeria",
         general_status.name AS "statut general"
     FROM command
@@ -834,7 +812,7 @@ CREATE VIEW ready_for_delivery AS
     WHERE command.general_status_id = 4
     ORDER BY creation_date;
 
-SELECT "numero de commande", "statut general" FROM ready_for_delivery WHERE "pizzeria" = 2;
+SELECT "numero de commande", "statut general" FROM v_ready_for_delivery WHERE "pizzeria" = 2;
 UPDATE command SET general_status_id = 6, archivated = TRUE WHERE command.id = 2;
 UPDATE command SET general_status_id = 7, archivated = TRUE WHERE command.id = 3;
 
@@ -843,6 +821,3 @@ SELECT command.archivated AS "archivée", command.id AS "numero de commande",
     FROM command
     INNER JOIN general_status ON general_status.id = command.general_status_id
     WHERE archivated = TRUE;
-
-
-SELECT * FROM account WHERE account.userid = "meuhmeuh" AND passhash = (crypt('meuh&&&111', gen_salt('bf', 8)));
