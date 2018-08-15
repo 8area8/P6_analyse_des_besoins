@@ -144,12 +144,21 @@ CREATE TABLE general_status
 );
 
 
+CREATE TABLE withdrawal_status
+(
+    id SERIAL,
+    name VARCHAR(100),
+    PRIMARY KEY (id)
+);
+
+
 CREATE TABLE command (
     id                      SERIAL,
     pizzeria_id             INTEGER NOT NULL,
     mail_id                 INTEGER NOT NULL,
     payment_status_id       INTEGER DEFAULT 1,
     general_status_id       INTEGER DEFAULT 1,
+    withdrawal_status_id    INTEGER NOT NULL,
     adress_id               INTEGER NOT NULL,
     phone_number_id         INTEGER NOT NULL,
     tracking_number         UUID DEFAULT gen_random_uuid(),
@@ -161,6 +170,7 @@ CREATE TABLE command (
     FOREIGN KEY (mail_id) REFERENCES mail(id) ON DELETE CASCADE,
     FOREIGN KEY (payment_status_id) REFERENCES payment_status(id) ON DELETE CASCADE,
     FOREIGN KEY (general_status_id) REFERENCES general_status(id) ON DELETE CASCADE,
+    FOREIGN KEY (withdrawal_status_id) REFERENCES withdrawal_status(id) ON DELETE CASCADE,
     FOREIGN KEY (adress_id) REFERENCES adress(id) ON DELETE CASCADE,
     FOREIGN KEY (phone_number_id) REFERENCES phone_number(id) ON DELETE CASCADE);
 
@@ -346,6 +356,10 @@ INSERT INTO payment_status (name) VALUES
     ('en attente de paiment'),
     ('payé');
 
+INSERT INTO withdrawal_status (name) VALUES
+    ('à livrer'),
+    ('retrait sur place');
+
 INSERT INTO user_role (role_name) VALUES
     ('super_user'), ('pizzaïolo'), ('seller'), ('delivery'), ('customer');
 
@@ -448,15 +462,15 @@ CREATE FUNCTION f_create_adress (a_country_id INTEGER, a_road_number SMALLINT,
 
 --
 --
-CREATE FUNCTION f_create_command (a_mail_id INTEGER, a_pizzeria_id INTEGER, a_adress_id INTEGER, a_phone_number_id INTEGER)
+CREATE FUNCTION f_create_command (a_mail_id INTEGER, a_pizzeria_id INTEGER, a_adress_id INTEGER, a_phone_number_id INTEGER, a_withdrawal_status_id INTEGER)
     RETURNS INTEGER
     AS
     '
       DECLARE
         id_command INTEGER;
     BEGIN
-        INSERT INTO command (pizzeria_id, mail_id, adress_id, phone_number_id) VALUES
-            (a_pizzeria_id, a_mail_id, a_adress_id, a_phone_number_id) RETURNING id INTO id_command;
+        INSERT INTO command (pizzeria_id, mail_id, adress_id, phone_number_id, withdrawal_status_id) VALUES
+            (a_pizzeria_id, a_mail_id, a_adress_id, a_phone_number_id, a_withdrawal_status_id) RETURNING id INTO id_command;
         RETURN id_command;
       END ;
     '
@@ -616,7 +630,7 @@ SELECT f_create_account('philipedanas@gmail.com', 1, 'Philipe', 'Danas', '073729
 SELECT f_affiliate_pizzeria('Philipe Danas', 1);
 SELECT f_set_role('Philipe Danas', 4);
 
-SELECT f_create_account('sophiezzz@gmail.com', 2, 'Sophie', 'Zira', '0784243355', 'deliver&$', 'Sophie Zira');
+SELECT f_create_account('sophiezzz@gmail.com', 2, 'Sophie', 'Zira', '0784243355', 'deliver&$2', 'Sophie Zira');
 SELECT f_affiliate_pizzeria('Sophie Zira', 2);
 SELECT f_set_role('Sophie Zira', 2);
 
@@ -625,121 +639,6 @@ SELECT f_set_role('Sophie Zira', 2);
 --
 SELECT f_create_account('mikaelaradu@gmail.com', 1, 'Mikael', 'Aradu', '0737003847', 'admin&$', 'Mikael Aradu');
 SELECT f_set_role('Mikael Aradu', 1);
-
-
-
--- -------------------------------
--- ----- COMMANDS ----------------
--- -------------------------------
-
-
--- A customer create a command. He has no account.
--- 
-DO
-'
-    DECLARE
-        id_adress INTEGER;
-        id_mail INTEGER;
-        id_phone_number INTEGER;
-        id_command INTEGER;
-        id_prod_per_com INTEGER;
-    BEGIN
-        SELECT f_create_adress (1::INTEGER, 10::SMALLINT, ''rue de leon''::VARCHAR(300), ''75010''::VARCHAR(40), ''paris''::VARCHAR(300)) INTO id_adress;
-
-        INSERT INTO mail (mail_adress) VALUES (''jenesuispasauthentifie@gmail.com'') ON CONFLICT DO NOTHING;
-        SELECT id INTO id_mail FROM mail WHERE mail_adress = ''jenesuispasauthentifie@gmail.com'';
-
-        INSERT INTO phone_number (number) VALUES (''0603928374'') ON CONFLICT DO NOTHING;
-        SELECT id INTO id_phone_number FROM phone_number WHERE number = ''0603928374'';
-
-        SELECT f_create_command (id_mail::INTEGER, 1::INTEGER, id_adress::INTEGER, id_phone_number::INTEGER) INTO id_command;
-
-        SELECT f_create_command_product (id_command, 4) INTO id_prod_per_com;
-        PERFORM f_modify_command_product (TRUE, id_prod_per_com, 4);
-        
-        PERFORM f_create_command_product (id_command, 2);
-    END;
-'
-LANGUAGE 'plpgsql';
-
-
--- A seller takes a customer command. We find the pizzeria id from the table 'affiliate_pizzeria'.
---
-DO
-'
-    DECLARE
-        id_adress INTEGER;
-        id_mail INTEGER;
-        id_phone_number INTEGER;
-        id_pizzeria INTEGER;
-        id_command INTEGER;
-        id_prod_per_com INTEGER;
-    BEGIN
-        SELECT f_create_adress (1::INTEGER, 34::SMALLINT, ''avenu de ouioui''::VARCHAR(300), ''75001''::VARCHAR(40), ''paris''::VARCHAR(300)) INTO id_adress;
-
-        INSERT INTO mail (mail_adress) VALUES (''commandseller@gmail.com'') ON CONFLICT DO NOTHING;
-        SELECT id INTO id_mail FROM mail WHERE mail_adress = ''commandseller@gmail.com'';
-
-        INSERT INTO phone_number (number) VALUES (''0640528374'') ON CONFLICT DO NOTHING;
-        SELECT id INTO id_phone_number FROM phone_number WHERE number = ''0640528374'';
-
-        SELECT pizz.id INTO id_pizzeria
-            FROM pizzeria AS pizz
-            INNER JOIN pizzeria_affiliate AS pizz_af ON pizz_af.pizzeria_id = pizz.id
-            INNER JOIN account ON account.id = pizz_af.account_id
-            WHERE account.userid = ''Martin Parat'';
-
-        SELECT f_create_command (id_mail::INTEGER, id_pizzeria::INTEGER, id_adress::INTEGER, id_phone_number::INTEGER) INTO id_command;
-
-        SELECT f_create_command_product (id_command, 1) INTO id_prod_per_com;
-        PERFORM f_modify_command_product (TRUE, id_prod_per_com, 5);
-        
-        PERFORM f_create_command_product (id_command, 3);
-    END;
-'
-LANGUAGE 'plpgsql';
-
-
--- A customer takes a command. He has an account.
---
-DO
-'
-    DECLARE
-        id_adress INTEGER;
-        id_mail INTEGER;
-        id_phone_number INTEGER;
-        id_command INTEGER;
-        id_prod_per_com INTEGER;
-    BEGIN
-        SELECT adress.id INTO id_adress
-            FROM adress
-            INNER JOIN adress_per_personnal_information AS adr_p_pi ON adress.id = adr_p_pi.adress_id
-            INNER JOIN personnal_information AS pi ON pi.id = adr_p_pi.personnal_information_id
-            INNER JOIN account ON account.personnal_information_id = pi.id
-            WHERE account.userid = ''luludu48'';
-
-        SELECT mail.id INTO id_mail
-            FROM mail
-            INNER JOIN account ON account.mail_id = mail.id
-            WHERE account.userid = ''luludu48'';
-
-        SELECT phone_number.id INTO id_phone_number
-            FROM phone_number
-            INNER JOIN personnal_information AS pi ON pi.phone_number_id = phone_number.id
-            INNER JOIN account ON account.personnal_information_id = pi.id
-            WHERE account.userid = ''luludu48'';
-
-        SELECT f_create_command (id_mail::INTEGER, 2::INTEGER, id_adress::INTEGER, id_phone_number::INTEGER) INTO id_command;
-        SELECT f_create_command_product (id_command, 4) INTO id_prod_per_com;
-        PERFORM f_modify_command_product (FALSE, id_prod_per_com, 6);
-        
-        PERFORM f_create_command_product (id_command, 2);
-        PERFORM f_modify_command_product (TRUE, id_prod_per_com, 3);
-        PERFORM f_modify_command_product (FALSE, id_prod_per_com, 4);
-    END;
-'
-LANGUAGE 'plpgsql';
-
 
 
 -- -------------------------------
@@ -782,13 +681,11 @@ CREATE VIEW v_command_general AS
     TO_CHAR(command.creation_date, 'YYYY-MM-DD HH24:MI') AS "date de creation", 
     TO_CHAR(command.last_modification_date, 'YYYY-MM-DD HH24:MI') AS "derniere modification",
         f_notax_price(command.id::INTEGER) AS "prix hors taxe", f_total_price(command.id) AS "prix TTC",
-        general_status.name AS "statut", payment_status.name AS "statut de paiement"
+        general_status.name AS "statut", payment_status.name AS "statut de paiement", withdrawal_status.name AS "statut de retrait"
     FROM command
     INNER JOIN general_status ON general_status.id = command.general_status_id
-    INNER JOIN payment_status ON payment_status.id = command.payment_status_id;
-
-
-
+    INNER JOIN payment_status ON payment_status.id = command.payment_status_id
+    INNER JOIN withdrawal_status ON withdrawal_status.id = command.withdrawal_status_id;
 
 
 CREATE VIEW v_standing_command AS
@@ -798,12 +695,6 @@ CREATE VIEW v_standing_command AS
     INNER JOIN general_status ON general_status.id = command.general_status_id
     ORDER BY creation_date;
 
-SELECT "numero de commande", "statut general" FROM v_standing_command WHERE "pizzeria" = 2;
-UPDATE command SET general_status_id = 2 WHERE command.id = 2;
-UPDATE command SET general_status_id = 4 WHERE command.id = 2;
-UPDATE command SET general_status_id = 2 WHERE command.id = 3;
-UPDATE command SET general_status_id = 4 WHERE command.id = 3;
-
 CREATE VIEW v_ready_for_delivery AS
     SELECT command.id AS "numero de commande", command.pizzeria_id AS "pizzeria",
         general_status.name AS "statut general"
@@ -811,13 +702,3 @@ CREATE VIEW v_ready_for_delivery AS
     INNER JOIN general_status ON general_status.id = command.general_status_id
     WHERE command.general_status_id = 4
     ORDER BY creation_date;
-
-SELECT "numero de commande", "statut general" FROM v_ready_for_delivery WHERE "pizzeria" = 2;
-UPDATE command SET general_status_id = 6, archivated = TRUE WHERE command.id = 2;
-UPDATE command SET general_status_id = 7, archivated = TRUE WHERE command.id = 3;
-
-SELECT command.archivated AS "archivée", command.id AS "numero de commande",
-        general_status.name AS "statut"
-    FROM command
-    INNER JOIN general_status ON general_status.id = command.general_status_id
-    WHERE archivated = TRUE;
