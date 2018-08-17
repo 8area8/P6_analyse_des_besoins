@@ -8,9 +8,18 @@
 -- -------------------------------
 -- ----- COMMANDS CREATION -------
 -- -------------------------------
+SELECT * FROM v_product_per_pizzeria WHERE pizz = 1;
+SELECT * FROM v_product_per_pizzeria WHERE pizz = 2;
+SELECT * FROM v_product_per_pizzeria WHERE pizz = 3;
 
 
--- A customer create a command. He has no account.
+
+-- -------------------------------
+-- ----- COMMANDS CREATION -------
+-- -------------------------------
+
+
+-- A customer takes a command. He has no account.
 -- 
 DO
 '
@@ -155,9 +164,9 @@ SELECT "numero de commande", "statut general"
     FROM v_ready_for_delivery
     WHERE "pizzeria" = 2;
 UPDATE command SET general_status_id = 5 WHERE command.id = 2;
-UPDATE command SET general_status_id = 6, archivated = TRUE WHERE command.id = 2;
+UPDATE command SET general_status_id = 6 WHERE command.id = 2;
 UPDATE command SET general_status_id = 5 WHERE command.id = 3;
-UPDATE command SET general_status_id = 7, archivated = TRUE WHERE command.id = 3;
+UPDATE command SET general_status_id = 7 WHERE command.id = 3;
 
 
 
@@ -165,7 +174,7 @@ UPDATE command SET general_status_id = 7, archivated = TRUE WHERE command.id = 3
 -- ---- ARCHIVATED SELECTION -----
 -- -------------------------------
 
-SELECT command.archivated AS "archivée", command.id AS "numero de commande", general_status.name AS "statut"
+SELECT command.archivated AS "archivée", command.id AS "numero de commande",                general_status.name AS "statut"
     FROM command
     INNER JOIN general_status ON general_status.id = command.general_status_id
     WHERE archivated = TRUE;

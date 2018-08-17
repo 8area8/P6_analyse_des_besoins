@@ -280,7 +280,6 @@ CREATE TABLE pizzeria_affiliate (
     FOREIGN KEY (account_id) REFERENCES account(id) ON DELETE CASCADE);
 
 
-
 -- ------------------------
 -- ------- VALUES ---------
 ---------------------------
@@ -571,6 +570,39 @@ CREATE FUNCTION f_notax_price (a_command_id INTEGER)
 
 
 
+CREATE FUNCTION f_update_last_modif_date ()
+    RETURNS TRIGGER AS
+    '
+      BEGIN
+        NEW.last_modification_date = current_timestamp;
+        RETURN NEW;
+      END ;
+    '
+    LANGUAGE 'plpgsql';
+
+CREATE FUNCTION f_update_archivated ()
+    RETURNS TRIGGER AS
+    '
+      BEGIN
+        NEW.archivated = TRUE;
+        RETURN NEW;
+      END ;
+    '
+    LANGUAGE 'plpgsql';
+
+
+
+CREATE TRIGGER t_update_date_command
+    BEFORE UPDATE ON command
+    FOR EACH ROW
+    EXECUTE PROCEDURE f_update_last_modif_date();
+
+
+CREATE TRIGGER t_update_arch_command
+    BEFORE UPDATE ON command
+    FOR EACH ROW
+    WHEN (NEW.general_status_id IN (6, 7))
+    EXECUTE PROCEDURE f_update_archivated();
 -- -------------------------------
 -- ----- SECONDARY VALUES --------
 -- -------------------------------
@@ -678,8 +710,8 @@ CREATE VIEW v_command_deletion AS
 
 CREATE VIEW v_command_general AS
     SELECT command.id AS "numero de commande", command.tracking_number AS "numero de suivi",
-    TO_CHAR(command.creation_date, 'YYYY-MM-DD HH24:MI') AS "date de creation", 
-    TO_CHAR(command.last_modification_date, 'YYYY-MM-DD HH24:MI') AS "derniere modification",
+    TO_CHAR(command.creation_date, 'YYYY-MM-DD HH24:MI:SS') AS "date de creation", 
+    TO_CHAR(command.last_modification_date, 'YYYY-MM-DD HH24:MI:SS') AS "derniere modification",
         f_notax_price(command.id::INTEGER) AS "prix hors taxe", f_total_price(command.id) AS "prix TTC",
         general_status.name AS "statut", payment_status.name AS "statut de paiement", withdrawal_status.name AS "statut de retrait"
     FROM command
@@ -693,6 +725,7 @@ CREATE VIEW v_standing_command AS
         general_status.name AS "statut general"
     FROM command
     INNER JOIN general_status ON general_status.id = command.general_status_id
+    WHERE general_status.name = 'en attente'
     ORDER BY creation_date;
 
 CREATE VIEW v_ready_for_delivery AS
@@ -702,3 +735,26 @@ CREATE VIEW v_ready_for_delivery AS
     INNER JOIN general_status ON general_status.id = command.general_status_id
     WHERE command.general_status_id = 4
     ORDER BY creation_date;
+
+
+
+CREATE OR REPLACE VIEW v_product_per_pizzeria AS
+    SELECT DISTINCT sub_one.ing_per_piz, sub_two.ing_per_prod,
+            product.name AS "produits", sub_one.pizz
+        FROM (
+                SELECT array_agg(ingredient.name) AS ing_per_piz, pizzeria.id AS pizz
+                    FROM ingredient
+                    INNER JOIN ingredient_per_pizzeria AS ippiz ON ingredient.id = ippiz.ingredient_id
+                    INNER JOIN pizzeria ON pizzeria.id = ippiz.pizzeria_id
+                    GROUP BY pizz
+            ) sub_one,
+            (
+                SELECT array_agg(ingredient.name) AS ing_per_prod, product.id AS "product"
+                    FROM ingredient
+                    INNER JOIN ingredient_per_product AS ipprod ON ingredient.id = ipprod.ingredient_id
+                    INNER JOIN product ON product.id = ipprod.product_id
+                    GROUP BY "product"
+            ) sub_two
+        INNER JOIN product ON product.id = sub_two."product"
+        WHERE ing_per_prod <@ ing_per_piz
+        ORDER BY pizz;
